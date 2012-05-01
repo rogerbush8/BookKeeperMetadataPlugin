@@ -2,20 +2,20 @@ package com.yahoo.bookkeeper.metadata.plugin.mock;
 
 import com.yahoo.bookkeeper.metadata.plugin.*;
 
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.NavigableMap;
 
 public class MockMetadataTable implements MetadataTable {
 	
 	private String name;
 	private long versionCounter = 1;
-
 	
-	// The simplest Mock table
-	
-	private HashMap<String,Versioned> map = null;
+	private TreeMap<String,VersionedValue> map = null;
 
 	public MockMetadataTable (MockMetadataPlugin plugin, String name) {
-		this.map = new HashMap<String,Versioned> ();
+		this.map = new TreeMap<String,VersionedValue> ();
 		this.name = name;
 	}
 	
@@ -23,15 +23,13 @@ public class MockMetadataTable implements MetadataTable {
 		return this.name;
 	}
 	
-	public Versioned get (String key) {
+	public VersionedValue get (String key) {
 		return map.get (key);
 	}
 	
-	public Versioned put (String key, String value) {
-		
+	public VersionedValue put (String key, String value) {	
 		// TODO synchronized
-		Version vr = new MockVersion (versionCounter++);
-		Versioned vv = new Versioned (value, vr);
+		VersionedValue vv = new MockVersionedValue (value, versionCounter++);
 		map.put (key, vv);
 		return vv;
 	}
@@ -44,18 +42,17 @@ public class MockMetadataTable implements MetadataTable {
 	// Our versioned object must have a version >= to current
 	// version of object that is set.
 	
-	public Versioned compareAndPut (String key, Versioned v) {
-		Versioned vv = map.get (key);
+	public VersionedValue compareAndPut (String key, VersionedValue v) {
+		VersionedValue vv = map.get (key);
 
 		// If no existing value or incoming value version >= existing version
 		// then store (success)
 		
 		if (vv == null ||
-			v.getVersion ().compare (vv.getVersion ()) != Occurred.BEFORE)
+			v.getVersion ().compare (vv.getVersion ()) != VersionedValue.Version.Occurred.BEFORE)
 		{
 			// update version and store
-			Version vr = new MockVersion (versionCounter++);
-			Versioned vv2 = new Versioned (v.getValue (), vr);
+			VersionedValue vv2 = new MockVersionedValue (v.getValue (), versionCounter++);
 			map.put (key, vv2);
 			return vv2;
 		}
@@ -64,7 +61,33 @@ public class MockMetadataTable implements MetadataTable {
 		
 		return null;
 	}
-	
-	
 
+	
+	public ScanResult scan (int maxItems, ScanResult.Cursor cursor) {
+
+		String startKey = (cursor == null) ? map.firstKey () : ((MockScanResult.MockScanCursor) cursor).getKey ();
+		
+		MockScanResult result = new MockScanResult ();
+		
+		int count = 0;
+		NavigableMap<String, VersionedValue> tempMap = map.tailMap(startKey, true);
+		Iterator<Map.Entry<String, VersionedValue>> iter = tempMap.entrySet ().iterator ();
+
+		while (iter.hasNext ()) {
+			count++;
+			Map.Entry<String, VersionedValue> entry = iter.next();
+			VersionedValue vv = entry.getValue ();
+			String currentKey = entry.getKey ();
+			
+			if (count > maxItems)
+			{
+				result.setScanCursor (currentKey);
+				break;
+			}
+			
+			result.addItem (new MetadataTableItem (currentKey, vv.getValue ()));
+		}
+		
+		return result;
+	}
 }

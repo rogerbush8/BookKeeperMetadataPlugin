@@ -1,5 +1,7 @@
 import static org.junit.Assert.*;
 
+import java.util.Iterator;
+
 import org.junit.Test;
 
 import com.yahoo.bookkeeper.metadata.plugin.*;
@@ -35,7 +37,7 @@ public class MainTest {
 		
 		String k = "k";
 		String v = "6";
-		Versioned vv;
+		VersionedValue vv;
 		
 		
 		myTable.remove (k);
@@ -61,13 +63,13 @@ public class MainTest {
 		
 		// ** Test compareAndPut
 		
-		Versioned vv2 = myTable.put (k, "7");
+		VersionedValue vv2 = myTable.put (k, "7");
 		
 		// Change value on versioned and compareAndPut.  Since version is latest, this can
 		// be successfully set with compareAndPut
 		
 		vv2.setValue ("8");
-		Versioned vv3 = myTable.compareAndPut (k, vv2);
+		VersionedValue vv3 = myTable.compareAndPut (k, vv2);
 		assertNotNull ("compareAndPut failed to set when version was greater", vv3);
 		
 		
@@ -77,15 +79,50 @@ public class MainTest {
 		assertEquals ("compareAndPut succeeded but value didn't get updated in store",
 				vv3.getValue (), "8");
 		
-		Versioned vv4 = myTable.compareAndPut (k, vv2);
+		VersionedValue vv4 = myTable.compareAndPut (k, vv2);
 		assertNull ("compareAndPut should have returned null (should have failed to put)", vv4);
 
-		Versioned vv5 = myTable.get (k);
+		VersionedValue vv5 = myTable.get (k);
 		assertEquals ("compareAndPut updated value on a failed put",
 				vv5.getValue (), "8");
+		
+		// Now add several items for a scan
+		myTable.put ("a", "1");
+		myTable.put ("b", "2");
+		myTable.put ("c", "3");
+		
+		// Simple usage
+		
+		{
+			int maxItems = 10;
+			ScanResult.Cursor cursor = null;
+			ScanResult result = myTable.scan (maxItems, cursor);
+			Iterator<MetadataTableItem> iter = result.getIterator ();
+			while (iter.hasNext ()) {
+				MetadataTableItem item = iter.next ();
+				System.out.println ("key = " + item.getKey () + " value = " + item.getValue ());
+			}
+		}
+		
+		
+		// Chunked, iterated usage
+		{
+			int run = 0;
+			int maxItems = 2;
+			ScanResult.Cursor cursor = null;
+			do {
+				run++;
+				ScanResult result = myTable.scan (maxItems, cursor);
+				cursor = result.getScanCursor ();
+				Iterator<MetadataTableItem> iter = result.getIterator ();
+				while (iter.hasNext ()) {
+					MetadataTableItem item = iter.next ();
+					System.out.println ("run = " + run + " key = " + item.getKey () + " value = " + item.getValue ());
+				}
+			} while (cursor != null);
+		}
+		
 
-		
-		
 		plugin.destroyTable (myTable);
 		plugin.uninit ();
 
