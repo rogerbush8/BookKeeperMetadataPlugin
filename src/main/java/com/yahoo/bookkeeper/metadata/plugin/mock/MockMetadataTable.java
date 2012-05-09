@@ -23,18 +23,54 @@ public class MockMetadataTable implements MetadataTable {
 		return this.name;
 	}
 	
-	public VersionedValue get (String key) {
-		return map.get (key);
+	public void asyncGet (MetadataTableGetCallback cb, Object ctx, String key) {
+		VersionedValue vv = mockGet (key);
+		int rc = 0;
+		cb.complete (rc, this, ctx, key, vv);
 	}
 	
-	public VersionedValue put (String key, String value) {	
+	public void asyncPut (MetadataTablePutCallback cb, Object ctx, String key, String value) {
+		VersionedValue vv = mockPut (key, value);
+		int rc = 0;
+		cb.complete (rc, this, ctx, key, vv);
+	}
+	
+	public void asyncRemove (MetadataTableRemoveCallback cb, Object ctx, String key) {
+		mockRemove (key);
+		int rc = 0;
+		cb.complete (rc, this, ctx, key);
+	}
+	
+	public void asyncCompareAndPut (MetadataTableCompareAndPutCallback cb,
+			Object ctx, String key, VersionedValue versionedValue) {
+		VersionedValue vv = mockCompareAndPut (key, versionedValue);
+		int rc = 0;
+		cb.complete (rc, this, ctx, key, vv);
+	}
+	
+	public void asyncScan (MetadataTableScanCallback cb,
+			Object ctx, int maxItems, ScanResult.Cursor cursor) {
+		ScanResult scanResult = mockScan (maxItems, cursor);
+		int rc = 0;
+		cb.complete (rc, this, ctx, maxItems, cursor, scanResult);
+	}
+	
+	// 
+
+
+	private VersionedValue mockGet (String key) {
+		return map.get (key);
+	}
+
+	
+	private VersionedValue mockPut (String key, String value) {	
 		// TODO synchronized
 		VersionedValue vv = new MockVersionedValue (value, versionCounter++);
 		map.put (key, vv);
 		return vv;
 	}
 	
-	public void remove (String key) {
+	private void mockRemove (String key) {
 		map.remove (key);
 	}
 	
@@ -42,7 +78,7 @@ public class MockMetadataTable implements MetadataTable {
 	// Our versioned object must have a version >= to current
 	// version of object that is set.
 	
-	public VersionedValue compareAndPut (String key, VersionedValue v) {
+	private VersionedValue mockCompareAndPut (String key, VersionedValue v) {
 		VersionedValue vv = map.get (key);
 
 		// If no existing value or incoming value version >= existing version
@@ -61,9 +97,8 @@ public class MockMetadataTable implements MetadataTable {
 		
 		return null;
 	}
-
-	
-	public ScanResult scan (int maxItems, ScanResult.Cursor cursor) {
+		
+	private ScanResult mockScan (int maxItems, ScanResult.Cursor cursor) {
 
 		String startKey = (cursor == null) ? map.firstKey () : ((MockScanResult.MockScanCursor) cursor).getKey ();
 		
