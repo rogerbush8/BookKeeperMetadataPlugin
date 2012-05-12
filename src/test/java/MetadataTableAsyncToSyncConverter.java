@@ -11,7 +11,7 @@
  *
  * See the License for the specific language governing permissions and limitations under the License.
  */
-import com.yahoo.bookkeeper.metadata.plugin.*;
+import org.apache.bookkeeper.metadata.plugin.*;
 
 
 // Converts async calls to sync calls for MetadataTable.  Currently not
@@ -21,47 +21,43 @@ import com.yahoo.bookkeeper.metadata.plugin.*;
 public class MetadataTableAsyncToSyncConverter {
 	private MetadataTable table;
 	
-	// HeldValue is useful for local, anonymous callbacks which require
-	// values passed by "final pointers"
-	
 	class HeldValue<T> {
 		private boolean finished = false;
-		private T vv = null;
+		private T value = null;
 		
 		boolean isFinished () {
 			return finished;
 		}
 		
 		T getValue () {
-			return vv;
+			return value;
 		}
 		
-		void setValue (T vv) {
+		void setValue (T value) {
 			this.finished = true;
-			this.vv = vv;
+			this.value = value;
 		}
 	}
+	
 	
 	
 	public MetadataTableAsyncToSyncConverter (MetadataTable table) {
 		this.table = table;
 	}
 	
-	
-	public VersionedValue get (String key) throws InterruptedException {
+	public String get (String key) throws InterruptedException {
 		
-		final HeldValue<VersionedValue> returnValue = new HeldValue<VersionedValue> ();
+		final HeldValue<String> returnValue = new HeldValue<String> ();
 		
-		MetadataTableGetCallback cb = new MetadataTableGetCallback () {
-			public void complete (int rc, MetadataTable table,
-					Object ctx, String key, VersionedValue vv) {
-				returnValue.setValue (vv);
+		MetadataTableCallback<String> cb = new MetadataTableCallback<String> () {
+			public void complete (int rc, String value) {
+				returnValue.setValue (value);
 			}
 		};
 	
 		// make the actual async call
 		
-		this.table.asyncGet (cb, new Object (), key);
+		this.table.get (cb, key);
 		
 		// busy wait
 		while ( ! returnValue.isFinished ()) {
@@ -69,43 +65,21 @@ public class MetadataTableAsyncToSyncConverter {
 		
 		return returnValue.getValue ();
 	}
-
-	public VersionedValue put (String key, String value) throws InterruptedException {
 	
-		final HeldValue<VersionedValue> returnValue = new HeldValue<VersionedValue> ();
 	
-		MetadataTablePutCallback cb = new MetadataTablePutCallback () {
-			public void complete (int rc, MetadataTable table,
-					Object ctx, String key, VersionedValue vv) {
-				returnValue.setValue (vv);
-			}
-		};
-
-		// make the actual async call
-	
-		this.table.asyncPut (cb, new Object (), key, value);
-	
-		// busy wait
-		while ( ! returnValue.isFinished ()) {
-		}
-	
-		return returnValue.getValue ();
-	}
-	
-	public void remove (String key) throws InterruptedException {
+	public void put (String key, String value) throws InterruptedException {
 		
-		final HeldValue<VersionedValue> returnValue = new HeldValue<VersionedValue> ();
+		final HeldValue<String> returnValue = new HeldValue<String> ();
 	
-		MetadataTableRemoveCallback cb = new MetadataTableRemoveCallback () {
-			public void complete (int rc, MetadataTable table,
-					Object ctx, String key) {
-				returnValue.setValue (null);
+		MetadataTableCallback<String> cb = new MetadataTableCallback<String> () {
+			public void complete (int rc, String value) {
+				returnValue.setValue (value);
 			}
 		};
 
 		// make the actual async call
 	
-		this.table.asyncRemove (cb, new Object (), key);
+		this.table.put (cb, key, value);
 	
 		// busy wait
 		while ( ! returnValue.isFinished ()) {
@@ -114,20 +88,41 @@ public class MetadataTableAsyncToSyncConverter {
 		return;
 	}
 	
-	public VersionedValue compareAndPut (String key, VersionedValue versionedValue) throws InterruptedException {
+	public void remove (String key) throws InterruptedException {
 		
-		final HeldValue<VersionedValue> returnValue = new HeldValue<VersionedValue> ();
+		final HeldValue<String> returnValue = new HeldValue<String> ();
 	
-		MetadataTableCompareAndPutCallback cb = new MetadataTableCompareAndPutCallback () {
-			public void complete (int rc, MetadataTable table,
-					Object ctx, String key, VersionedValue vv) {
-				returnValue.setValue (vv);
+		MetadataTableCallback<String> cb = new MetadataTableCallback<String> () {
+			public void complete (int rc, String key) {
+				returnValue.setValue (null);
 			}
 		};
 
 		// make the actual async call
 	
-		this.table.asyncCompareAndPut (cb, new Object (), key, versionedValue);
+		this.table.remove (cb, key);
+	
+		// busy wait
+		while ( ! returnValue.isFinished ()) {
+		}
+	
+		return;
+	}
+	
+
+	public boolean compareAndPut (String key, String oldValue, String newValue) throws InterruptedException {
+		
+		final HeldValue<Boolean> returnValue = new HeldValue<Boolean> ();
+	
+		MetadataTableCallback<Boolean> cb = new MetadataTableCallback<Boolean> () {
+			public void complete (int rc, Boolean success) {
+				returnValue.setValue (success);
+			}
+		};
+
+		// make the actual async call
+	
+		this.table.compareAndPut (cb, key, oldValue, newValue);
 	
 		// busy wait
 		while ( ! returnValue.isFinished ()) {
@@ -136,20 +131,19 @@ public class MetadataTableAsyncToSyncConverter {
 		return returnValue.getValue ();
 	}
 	
-	public ScanResult scan (int maxItems, ScanResult.Cursor cursor) throws InterruptedException {
+	public ScanResult scan (String firstKey, String lastKey) throws InterruptedException {
 		
 		final HeldValue<ScanResult> returnValue = new HeldValue<ScanResult> ();
 	
-		MetadataTableScanCallback cb = new MetadataTableScanCallback () {
-			public void complete (int rc, MetadataTable table,
-					Object ctx, int maxItems, ScanResult.Cursor cursor, ScanResult scanResult) {
-				returnValue.setValue (scanResult);
+		MetadataTableCallback<ScanResult> cb = new MetadataTableCallback<ScanResult> () {
+			public void complete (int rc, ScanResult result) {
+				returnValue.setValue (result);
 			}
 		};
 
 		// make the actual async call
 	
-		this.table.asyncScan (cb, new Object (), maxItems, cursor);
+		this.table.scan (cb, firstKey, lastKey);
 	
 		// busy wait
 		while ( ! returnValue.isFinished ()) {

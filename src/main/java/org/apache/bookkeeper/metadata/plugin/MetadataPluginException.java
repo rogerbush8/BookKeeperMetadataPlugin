@@ -11,10 +11,15 @@
  *
  * See the License for the specific language governing permissions and limitations under the License.
  */
-package com.yahoo.bookkeeper.metadata.plugin;
+package org.apache.bookkeeper.metadata.plugin;
 
+public class MetadataPluginException extends Exception {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 
-public abstract class MetadataTableScanCallback extends MetadataTableCallback {
-	public abstract void complete (int rc, MetadataTable table,
-			Object ctx, int maxItems, ScanResult.Cursor cursor, ScanResult scanResult);
+	public MetadataPluginException (String message, Throwable e) {
+		super (message, e);
+	}
 }

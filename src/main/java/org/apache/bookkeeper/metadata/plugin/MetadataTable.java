@@ -11,31 +11,13 @@
  *
  * See the License for the specific language governing permissions and limitations under the License.
  */
-package com.yahoo.bookkeeper.metadata.plugin;
+package org.apache.bookkeeper.metadata.plugin;
 
-public class MetadataTableItem {
-	
-	private String key;
-	private String value;
-	
-	public MetadataTableItem (String key, String value) {
-		this.key = key;
-		this.value = value;
-	}
-
-	public String getKey () {
-		return key;
-	}
-
-	public void setKey (String key) {
-		this.key = key;
-	}
-
-	public String getValue () {
-		return value;
-	}
-
-	public void setValue (String value) {
-		this.value = value;
-	}
+public interface MetadataTable {
+	public String getName ();
+	public void get (MetadataTableCallback<String> cb, String key);
+	public void put (MetadataTableCallback<String>cb, String key, String value);  // Overwrite
+	public void remove (MetadataTableCallback<String> cb, String key);
+	public void compareAndPut (MetadataTableCallback<Boolean> cb, String key, String oldValue, String newValue);
+	public void scan (MetadataTableCallback<ScanResult> cb, String firstKey, String lastKey);
 }

@@ -15,9 +15,10 @@ import static org.junit.Assert.*;
 
 
 import java.util.Iterator;
+
+import org.apache.bookkeeper.metadata.plugin.*;
 import org.junit.Test;
 
-import com.yahoo.bookkeeper.metadata.plugin.*;
 
 public class MainTest {
 	
@@ -44,108 +45,121 @@ public class MainTest {
 		
 		
     		
-		MetadataTable myTable = plugin.createTable ("myTable");
+		MetadataTable myActualTable = plugin.createTable ("myTable");
 		
 		
 		// ** Test get, put, remove
 		
-		String k = "k";
-		String v = "6";
-		VersionedValue vv;
-		
-		MetadataTableAsyncToSyncConverter myTable2 = new MetadataTableAsyncToSyncConverter (myTable);
+		String k = "a";
+		String v;
 		
 		// Catch InterruptedException
 		try
 		{
-			myTable2.remove (k);
-			vv = myTable2.get (k);
-			assertNull ("Precondition failed:  If key is present, remove for tests", vv);
+			// Use a wrapper for testing sync calls
+			MetadataTableAsyncToSyncConverter myTable = new MetadataTableAsyncToSyncConverter (myActualTable);
+			
+			// Make sure key isn't there
+			myTable.remove (k);
+			
+			// Should be OK to delete a non-existent element
+			myTable.remove (k);		
+			
+			v = myTable.get (k);
+			assertNull ("Doing get on a non-existent element returns null", v);
 		
 		
 			// put is unconditional overwrite
 		
-			vv = myTable2.put (k, v);
+			myTable.put (k, "12");
+			
 		
-		
-			// get returns Versioned which has a Version and (String) Value
-		
-			// vv = myTable.get (k);	
-			vv = myTable2.get (k);	
-			assertNotNull ("Get failed to find key", vv);
-		
+			v = myTable.get (k);	
+			assertNotNull ("Get key we just put", v);
+			assertEquals ("Put stores value", v, "12");
+			
+			myTable.put (k, "13");
+			v = myTable.get (k);
+			assertEquals ("Put overwrites existing value", v, "13");
 
-			myTable2.remove (k);
-			vv = myTable2.get (k);	
-			assertNull ("Remove failed to delete key", vv);
+			myTable.remove (k);
+			v = myTable.get (k);	
+			assertNull ("Remove key we just put", v);
 		
 		
 			// ** Test compareAndPut
+			
+			String oldValue = "7";
+			myTable.put (k, oldValue);
 		
-			VersionedValue vv2 = myTable2.put (k, "7");
+			// Let's try a failure
+			String newValue = "8";
+			String notOldValue = newValue;
+			boolean ok = myTable.compareAndPut (k, notOldValue, newValue);
+			assertFalse ("compareAndPut returns false when stored value is different from oldValue", ok);
 		
-			// Change value on versioned and compareAndPut.  Since version is latest, this can
-			// be successfully set with compareAndPut
-		
-			vv2.setValue ("8");
-			VersionedValue vv3 = myTable2.compareAndPut (k, vv2);
-			assertNotNull ("compareAndPut failed to set when version was greater", vv3);
-		
-		
-			// Make sure that the value is actually stored
-		
-			vv3 = myTable2.get (k);	
-			assertEquals ("compareAndPut succeeded but value didn't get updated in store",
-				vv3.getValue (), "8");
-		
-			VersionedValue vv4 = myTable2.compareAndPut (k, vv2);
-			assertNull ("compareAndPut should have returned null (should have failed to put)", vv4);
-
-			VersionedValue vv5 = myTable2.get (k);
-			assertEquals ("compareAndPut updated value on a failed put",
-				vv5.getValue (), "8");
+			// Should still have oldValue in it
+			v = myTable.get (k);
+			assertEquals ("compareAndPut shouldn't change value if it returns false", oldValue, v);
+			
+			// Now successfully store value
+			ok = myTable.compareAndPut(k, oldValue, newValue);
+			assertTrue ("compareAndPut returns true when oldValue == stored value", ok);
+			v = myTable.get (k);
+			assertEquals ("compareAndPut updates value when it returns true", newValue, v);
+	
 		
 			// Now add several items for a scan
-			myTable2.put ("a", "1");
-			myTable2.put ("b", "2");
-			myTable2.put ("c", "3");
-		
-			// Simple usage
-		
+			myTable.put ("b", "2");
+			myTable.put ("c", "3");
+			myTable.put ("d", "4");
+			myTable.put ("e", "5");
+
+
+			// Simple usage - scan entire table
+			int count = 0;
 			{
-				int maxItems = 10;
-				ScanResult.Cursor cursor = null;
-				ScanResult result = myTable2.scan (maxItems, cursor);
+				ScanResult result = myTable.scan (null, null);
 				Iterator<MetadataTableItem> iter = result.getIterator ();
 				while (iter.hasNext ()) {
+					count++;
 					MetadataTableItem item = iter.next ();
 					System.out.println ("key = " + item.getKey () + " value = " + item.getValue ());
 				}
 			}
-		
-		
-			// Chunked, iterated usage
+
+			// Scan in two passes, from implied firstKey (null) to "b" (non-inclusive), and from
+			// "b" (inclusive) to implied lastKey (null).
+			
+			int count2 = 0;
 			{
-				int run = 0;
-				int maxItems = 2;
-				ScanResult.Cursor cursor = null;
-				do {
-					run++;
-					ScanResult result = myTable2.scan (maxItems, cursor);
-					cursor = result.getScanCursor ();
-					Iterator<MetadataTableItem> iter = result.getIterator ();
-					while (iter.hasNext ()) {
-						MetadataTableItem item = iter.next ();
-						System.out.println ("run = " + run + " key = " + item.getKey () + " value = " + item.getValue ());
-					}
-				} while (cursor != null);
+				ScanResult result = myTable.scan (null, "b");
+				Iterator<MetadataTableItem> iter = result.getIterator ();
+				while (iter.hasNext ()) {
+					count2++;
+					MetadataTableItem item = iter.next ();
+					System.out.println ("key = " + item.getKey () + " value = " + item.getValue ());
+				}	
 			}
+			
+			{
+				ScanResult result = myTable.scan ("b", null);
+				Iterator<MetadataTableItem> iter = result.getIterator ();
+				while (iter.hasNext ()) {
+					count2++;
+					MetadataTableItem item = iter.next ();
+					System.out.println ("key = " + item.getKey () + " value = " + item.getValue ());
+				}	
+			}
+			
+			assertEquals ("Scanning from (null, null) has the same count as (null, key), (key, null)",
+					count, count2);
+			
 		} catch (InterruptedException e)
 		{
 		}
-		
 
-		plugin.destroyTable (myTable);
+		plugin.destroyTable (myActualTable);
 		plugin.uninit (); 
 	}
 

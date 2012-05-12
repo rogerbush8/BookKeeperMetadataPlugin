@@ -11,9 +11,9 @@
  *
  * See the License for the specific language governing permissions and limitations under the License.
  */
-package com.yahoo.bookkeeper.metadata.plugin.mock;
+package org.apache.bookkeeper.metadata.plugin.mock;
 
-import com.yahoo.bookkeeper.metadata.plugin.*;
+import org.apache.bookkeeper.metadata.plugin.*;
 
 public class MockMetadataPlugin implements MetadataPlugin {
 	

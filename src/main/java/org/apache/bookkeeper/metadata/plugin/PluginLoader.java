@@ -11,7 +11,7 @@
  *
  * See the License for the specific language governing permissions and limitations under the License.
  */
-package com.yahoo.bookkeeper.metadata.plugin;
+package org.apache.bookkeeper.metadata.plugin;
 
 import java.lang.reflect.Constructor;
 
